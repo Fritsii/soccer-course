@@ -11,6 +11,8 @@ const CONTROL_SCHEME_MAP : Dictionary = {
 }
 const GRAVITY := 8.0
 const WALK_ANIM_THRESHOLD := 0.6
+const STAMINA_DECAY_RATE := 5.0
+const STAMINA_RECOVERY_RATE := 2.0
 
 enum ControlScheme {CPU, P1, P2}
 enum Role {GOALIE, DEFENSE, MIDFIELD, OFFENSE}
@@ -22,6 +24,7 @@ enum State {MOVING, TACKLING, RECOVERING, PREPPING_SHOT, SHOOTING, PASSING, HEAD
 @export var own_goal : Goal
 @export var power : float
 @export var speed : float
+@export var stamina : float
 @export var target_goal : Goal
 
 @onready var animation_player : AnimationPlayer = %AnimationPlayer
@@ -50,6 +53,8 @@ var skin_color := Player.SkinColor.MEDIUM
 var spawn_position := Vector2.ZERO
 var state_factory := PlayerStateFactory.new()
 var weight_on_duty_steering := 0.0
+var base_speed := 0.0
+var max_stamina := 100.0
 
 func _ready() -> void:
 	set_control_texture()
@@ -66,10 +71,11 @@ func _ready() -> void:
 	switch_state(State.RESETING, PlayerStateData.build().set_reset_position(initial_position))
 
 func _process(delta: float) -> void:
-	flip_sprites()
-	set_sprite_visibility()
-	process_gravity(delta)
-	move_and_slide()
+        update_stamina(delta)
+        flip_sprites()
+        set_sprite_visibility()
+        process_gravity(delta)
+        move_and_slide()
 
 func set_shader_properties() -> void:
 	player_sprite.material.set_shader_parameter("skin_color", skin_color)
@@ -82,15 +88,18 @@ func initialize(context_position: Vector2, context_kickoff_position: Vector2, co
 	position = context_position
 	kickoff_position = context_kickoff_position
 	ball = context_ball
-	own_goal = context_own_goal
-	target_goal = context_target_goal
-	speed = context_player_data.speed
-	power = context_player_data.power
-	role = context_player_data.role
-	skin_color = context_player_data.skin_color
-	fullname = context_player_data.full_name
-	heading = Vector2.LEFT if target_goal.position.x < position.x else Vector2.RIGHT
-	country = context_country
+        own_goal = context_own_goal
+        target_goal = context_target_goal
+        base_speed = context_player_data.speed
+        speed = base_speed
+        power = context_player_data.power
+        max_stamina = context_player_data.stamina
+        stamina = max_stamina
+        role = context_player_data.role
+        skin_color = context_player_data.skin_color
+        fullname = context_player_data.full_name
+        heading = Vector2.LEFT if target_goal.position.x < position.x else Vector2.RIGHT
+        country = context_country
 
 func setup_ai_behavior() -> void:
 	current_ai_behavior = ai_behavior_factory.get_ai_behavior(role)
@@ -198,5 +207,15 @@ func on_game_over(winning_team: String) -> void:
 		switch_state(Player.State.MOURNING)
 
 func control_ball() -> void:
-	if ball.height > BALL_CONTROL_HEIGHT_MAX:
-		switch_state(Player.State.CHEST_CONTROL)
+        if ball.height > BALL_CONTROL_HEIGHT_MAX:
+                switch_state(Player.State.CHEST_CONTROL)
+
+func update_stamina(delta: float) -> void:
+        if velocity.length() > 0:
+                stamina = clamp(stamina - STAMINA_DECAY_RATE * delta, 0.0, max_stamina)
+        else:
+                stamina = clamp(stamina + STAMINA_RECOVERY_RATE * delta, 0.0, max_stamina)
+        speed = base_speed * lerp(0.5, 1.0, stamina / max_stamina)
+
+func get_effective_power() -> float:
+        return power * lerp(0.5, 1.0, stamina / max_stamina)

@@ -37,7 +37,7 @@ func perform_ai_decisions() -> void:
 		if player.position.distance_to(target) < SHOT_DISTANCE and randf() < SHOT_PROBABILITY:
 			player.face_towards_target_goal()
 			var shot_direction := player.position.direction_to(player.target_goal.get_random_target_position())
-			var data := PlayerStateData.build().set_shot_power(player.power).set_shot_direction(shot_direction)
+                        var data := PlayerStateData.build().set_shot_power(player.get_effective_power()).set_shot_direction(shot_direction)
 			player.switch_state(Player.State.SHOOTING, data)
 		elif randf() < PASS_PROBABILITY and has_opponents_nearby() and has_teammate_in_view():
 			player.switch_state(Player.State.PASSING)
